@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mail Assistant">
+<title>Mail Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0ede8;
+    --surface: #ffffff;
+    --bubble-user: #1a1a1a;
+    --bubble-ai: #ffffff;
+    --text-user: #ffffff;
+    --text-ai: #1a1a1a;
+    --text-muted: #888;
+    --accent: #2a6e4e;
+    --accent-light: #e8f4ef;
+    --border: #e0ddd8;
+    --input-bg: #ffffff;
+    --send-btn: #1a1a1a;
+    --chip-bg: #f5f2ee;
+    --chip-border: #ddd9d3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111110;
+      --surface: #1c1c1a;
+      --bubble-user: #e8e4de;
+      --bubble-ai: #262624;
+      --text-user: #1a1a1a;
+      --text-ai: #e8e4de;
+      --text-muted: #666;
+      --accent: #3d9e6e;
+      --accent-light: #1a2e24;
+      --border: #2a2a28;
+      --input-bg: #1c1c1a;
+      --send-btn: #e8e4de;
+      --chip-bg: #222220;
+      --chip-border: #333330;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-ai);
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .avatar {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .header-info { flex: 1; }
+  .header-name { font-size: 15px; font-weight: 500; color: var(--text-ai); }
+  .header-status { font-size: 12px; color: var(--accent); }
+  .api-btn {
+    font-size: 12px; padding: 6px 12px;
+    background: var(--chip-bg); border: 1px solid var(--chip-border);
+    border-radius: 20px; color: var(--text-ai); cursor: pointer;
+    white-space: nowrap;
+  }
+  .api-btn:hover { background: var(--border); }
+
+  /* API key modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 360px; width: 100%;
+    border: 1px solid var(--border);
+  }
+  .modal h2 { font-size: 17px; font-weight: 500; margin-bottom: 8px; }
+  .modal p { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+  .modal input {
+    width: 100%; padding: 11px 14px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); color: var(--text-ai);
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    margin-bottom: 12px;
+  }
+  .modal-btn {
+    width: 100%; padding: 12px;
+    background: var(--send-btn); color: var(--bg);
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    cursor: pointer;
+  }
+  .modal-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; text-align: center; line-height: 1.4; }
+
+  /* Chat area */
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+  }
+  .chat::-webkit-scrollbar { width: 0; }
+
+  /* Date separator */
+  .date-sep {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 4px 0 8px;
+  }
+
+  /* Message bubbles */
+  .msg { display: flex; flex-direction: column; max-width: 82%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.ai { align-self: flex-start; align-items: flex-start; }
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: var(--bubble-user);
+    color: var(--text-user);
+    border-bottom-right-radius: 4px;
+  }
+  .msg.ai .bubble {
+    background: var(--bubble-ai);
+    color: var(--text-ai);
+    border-bottom-left-radius: 4px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .msg-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    padding: 0 4px;
+  }
+  .typing-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: blink 1.2s infinite;
+    margin: 0 2px;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+  /* Quick chips */
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 16px 4px;
+    flex-shrink: 0;
+  }
+  .chip {
+    font-size: 12.5px;
+    padding: 7px 13px;
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
+    border-radius: 20px;
+    cursor: pointer;
+    color: var(--text-ai);
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .chip:hover, .chip:active { background: var(--border); }
+
+  /* Input row */
+  .input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 10px 14px 14px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .input-wrap {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    display: flex;
+    align-items: flex-end;
+    padding: 4px 6px 4px 14px;
+  }
+  textarea {
+    flex: 1;
+    border: none; outline: none;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text-ai);
+    resize: none;
+    line-height: 1.5;
+    max-height: 120px;
+    padding: 6px 0;
+    overflow-y: auto;
+  }
+  textarea::placeholder { color: var(--text-muted); }
+  .send-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--send-btn);
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .send-btn:active { transform: scale(0.93); }
+  .send-btn:disabled { opacity: 0.3; cursor: default; }
+  .send-btn svg { width: 16px; height: 16px; fill: var(--bg); }
+
+  .safe-note {
+    text-align: center;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    padding: 0 16px 6px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- API Key Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>Enter your API key</h2>
+    <p>Your key is stored only in this browser — never sent anywhere except Anthropic's API. Get one free at console.anthropic.com.</p>
+    <input type="password" id="api-input" placeholder="sk-ant-..." autocomplete="off" />
+    <button class="modal-btn" onclick="saveKey()">Start chatting</button>
+    <p class="modal-note">Key stored locally on this device only. Never shared.</p>
+  </div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="avatar">✉</div>
+  <div class="header-info">
+    <div class="header-name">Mail Assistant</div>
+    <div class="header-status" id="status-txt">ready</div>
+  </div>
+  <button class="api-btn" onclick="changeKey()">API key</button>
+</div>
+
+<!-- Chat messages -->
+<div class="chat" id="chat"></div>
+
+<!-- Quick chips -->
+<div class="chips" id="chips">
+  <div class="chip" onclick="chip('Summarise my job application emails')">📋 Job apps</div>
+  <div class="chip" onclick="chip('Summarise my university application emails')">🎓 Uni apps</div>
+  <div class="chip" onclick="chip('What urgent emails need a reply today?')">⚑ Urgent</div>
+  <div class="chip" onclick="chip('Organise my inbox with labels')">🗂 Organise</div>
+  <div class="chip" onclick="chip('Weekly inbox summary')">📊 Digest</div>
+</div>
+
+<!-- Input -->
+<div class="input-row">
+  <div class="input-wrap">
+    <textarea id="inp" rows="1" placeholder="Message your assistant…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+  </div>
+  <button class="send-btn" id="send-btn" onclick="send()">
+    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+  </button>
+</div>
+<div class="safe-note">Key stored locally · Never shared · gmail connected</div>
+
+<script>
+const SYSTEM = `You are a personal email assistant helping a student manage their Gmail inbox while applying to jobs and masters programs.
+
+Your job:
+1. Reply to emails the user describes in simple language — write professional email drafts with To, Subject, and Body. ALWAYS show the full draft and ask for approval BEFORE sending.
+2. When checking emails: summarize them clearly, flag urgent ones, and tag them as job/uni/normal.
+3. Draft appropriate replies to important emails.
+4. Help keep inbox organised with labels.
+5. Be warm, concise, and conversational — like a smart friend who handles emails.
+
+Format emails clearly like:
+To: [recipient]
+Subject: [subject]
+---
+[body]
+---
+Ready to send? Reply yes to confirm or tell me what to change.
+
+Keep responses concise. Use bullet points for lists. Don't be overly formal.`;
+
+let history = [];
+let apiKey = localStorage.getItem('mail_asst_key') || '';
+let sending = false;
+
+function now() {
+  return new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+function saveKey() {
+  const k = document.getElementById('api-input').value.trim();
+  if (!k.startsWith('sk-')) { alert('Paste a valid Anthropic API key (starts with sk-)'); return; }
+  localStorage.setItem('mail_asst_key', k);
+  apiKey = k;
+  document.getElementById('modal').classList.add('hidden');
+  greet();
+}
+
+function changeKey() {
+  document.getElementById('api-input').value = '';
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function addMsg(role, text) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `<div class="bubble">${text}</div><div class="msg-time">${now()}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function addTyping() {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'typing';
+  div.innerHTML = `<div class="bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+function greet() {
+  const hour = new Date().getHours();
+  const g = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  addMsg('ai', `${g}! 👋\n\nI'm your personal email assistant. I can help you:\n• Draft and send replies\n• Summarise job & uni applications\n• Flag urgent emails\n• Keep your inbox organised\n\nWhat do you need help with today?`);
+}
+
+async function send() {
+  if (sending) return;
+  const inp = document.getElementById('inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  if (!apiKey) { document.getElementById('modal').classList.remove('hidden'); return; }
+
+  inp.value = '';
+  inp.style.height = 'auto';
+  addMsg('user', text);
+  history.push({role:'user', content: text});
+
+  sending = true;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('status-txt').textContent = 'typing…';
+  document.getElementById('chips').style.display = 'none';
+  addTyping();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM,
+        messages: history
+      })
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const reply = data.content[0].text;
+    history.push({role:'assistant', content: reply});
+    removeTyping();
+    addMsg('ai', reply);
+    document.getElementById('status-txt').textContent = 'ready';
+  } catch(e) {
+    removeTyping();
+    addMsg('ai', `Something went wrong: ${e.message}\n\nCheck your API key or try again.`);
+    document.getElementById('status-txt').textContent = 'error';
+  }
+
+  sending = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+function chip(text) {
+  document.getElementById('inp').value = text;
+  send();
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// Init
+if (!apiKey) {
+  document.getElementById('modal').classList.remove('hidden');
+} else {
+  document.getElementById('modal').classList.add('hidden');
+  greet();
+}
+</script>
+</body>
+</html>
